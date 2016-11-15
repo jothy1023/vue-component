@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>auditUsers</title>
+  <style lang="less">
+    #audit {
+      margin-top: 20px;
+    }
+    
+    .status-picker {
+      display: inline-block;
+    }
+    
+    .status-picker select {
+      border-radius: 5px;
+      width: 200px;
+      float: left;
+      height: 37px;
+      margin-bottom: -13px;
+      border: 1px solid rgba(34, 36, 38, .15);
+      padding: 0 10px;
+    }
+    
+    .jtp {
+      margin-top: 10px;
+    }
+    
+    .jtp input {
+      width: 50px;
+      height: 25px;
+    }
+  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.6/semantic.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.6/semantic.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.0.2/vue.js"></script>
+</head>
+
+<body>
+  <div id="audit">
+    <div class="filter">
+      <div class="ui input icon">
+        <input type="text" v-model="fKey" />
+        <i class="search icon"></i>
+      </div>
+      <div class="status-picker">
+        <select name="aKey" type="hidden" v-model.lazy="aKey">
+          <option value="">所有</option>
+          <option value="0">未审核</option>
+          <option value="1">正在审核</option>
+          <option value="2">已审核</option>
+          <option value="3">审核不通过</option>
+        </select>
+      </div>
+    </div>
+    <div class="container">
+      <table class="ui compact celled definition table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>id</th>
+            <th>姓名</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="user in filteredUsers">
+            <td class="collapsing">
+              <div class="ui toggle slider checkbox" v-if="aKey!==''">
+                <input type="checkbox" :value="user" v-model="selectedUsers"> <label></label>
+              </div>
+            </td>
+            <td>{{ user.id }}</td>
+            <td>{{ user.name }}</td>
+            <td>
+              <i class="radio black icon" v-if="user.audit==0"></i>
+              <i class="minus blue icon" v-if="user.audit==1"></i>
+              <i class="checkmark green icon" v-if="user.audit==2"></i>
+              <i class="remove red icon" v-if="user.audit==3"></i>
+            </td>
+            <td>
+              <button class="ui button primary" v-if="user.audit==0" @click="user.audit=1">审核</button>
+              <button class="ui button green" v-if="user.audit==1" @click="user.audit=2">通过审核</button>
+              <button class="ui button red" v-if="user.audit==1" @click="user.audit=3">不通过审核</button>
+              <button class="ui button grey" v-if="user.audit==2 || user.audit==3" @click="user.audit=1">再次审核</button>
+            </td>
+          </tr>
+        </tbody>
+        <tfoot class="full-width">
+          <tr>
+            <th></th>
+            <th colspan="4">
+              <button class="ui button green" v-if="aKey==='1'" @click="pass">通过审核</button>
+              <button class="ui button green" v-if="aKey==='1'" @click="reject">不通过审核</button>
+              <button class="ui button small" v-if="aKey==='0'" @click="approveSel">审核</button>
+              <button class="ui button small" v-if="aKey==='0'" @click="approveAll">全部审核</button>
+              <button class="ui button small" v-if="aKey==='2' || aKey==='3'" @click="approveSel">再次审核</button>
+              <button class="ui button small" v-if="aKey==='2' || aKey==='3'" @click="approveAll">全部再次审核</button>
+              <button class="ui button left labeled icon" @click="turnPage(-1)">
+                <i class="left arrow icon"></i> Prev
+              </button>
+              <span>共 {{ totalPage }} 页，当前第 {{ currentPage+1 }} 页</span>
+              <button class="ui button right labeled icon" @click="turnPage(1)">
+                <i class="right arrow icon"></i> Next
+              </button>
+              <form @submit.prevent="jumpToPage" class="jtp">
+                <div class="ui input">
+                  <span>跳转到第 <input type="text" v-model="jPage"> 页</span>
+                </div>
+              </form>
+            </th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+
+  <script>
+  var mockUsers = [
+    { name: 'sam', id: 1, audit: 0 }, { name: 'lucy', id: 22, audit: 1 }, { name: 'like', id: 37, audit: 2 }, { name: 'peer', id: 47, audit: 3 },
+    { name: 'sam1', id: 2, audit: 0 }, { name: 'lucy', id: 32, audit: 1 }, { name: 'like', id: 76, audit: 2 }, { name: 'peer', id: 87, audit: 3 },
+    { name: 'sam2', id: 3, audit: 0 }, { name: 'lucy', id: 42, audit: 1 }, { name: 'like', id: 36, audit: 2 }, { name: 'peer', id: 46, audit: 3 },
+    { name: 'sam1', id: 4, audit: 0 }, { name: 'lucy', id: 52, audit: 1 }, { name: 'like', id: 75, audit: 2 }, { name: 'peer', id: 86, audit: 3 },
+    { name: 'sam3', id: 5, audit: 0 }, { name: 'lucy', id: 62, audit: 1 }, { name: 'like', id: 35, audit: 2 }, { name: 'peer', id: 45, audit: 3 },
+    { name: 'sam1', id: 6, audit: 0 }, { name: 'lucy', id: 72, audit: 1 }, { name: 'like', id: 74, audit: 2 }, { name: 'peer', id: 84, audit: 3 },
+  ]
+
+  var userStorage
+
+  function init() {
+    var STORAGE_KEY = 'users';
+
+    userStorage = {
+      fetch: function () {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || mockUsers
+      },
+      save: function (data) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+      }
+    };
+
+    }
+   
+  init(window);
+
+  const vm = new Vue({
+    name: 'audit',
+    el: '#audit',
+    data () {
+      return {
+        users: userStorage.fetch(),
+        selectedUsers: [],
+        fKey: '',
+        oldFKey: '',
+        aKey: '',
+        limit: 10,
+        totalPage: 0,
+        currentPage: 0,
+        jPage: null
+      } 
+    },
+    // watch
+    watch: {
+      users: {
+        handler () {
+          userStorage.save(this.users)
+        },
+        deep: true
+      }
+    },
+    // computed properties
+    computed: {
+      filteredUsers () {
+        let fUsers = this.queryFilter('name', this.fKey, this.users)
+        fUsers = this.queryFilter('audit', this.aKey, fUsers)
+        return this.paginate(fUsers)
+      }
+    },
+    methods: {
+      addUser () {
+        this.users.push(this.user)
+      },
+      queryFilter (prop, key, arr) {
+        // none query string, return arr
+        if (!key) {
+          return arr
+        }
+        // filtering
+        arr = arr.filter((user) => {
+          if (user[prop].toString().indexOf(key) !== -1) {
+            return true 
+          }
+        })
+        // if it's a new query, turn to page one
+        if (key !== this.oldFKey) {
+          this.currentPage = 0
+          // save last filter query
+          this.oldFKey = key
+        }
+        return arr
+      },
+      paginate (arr) {
+        // totalPage
+        this.totalPage = Math.ceil(arr.length / this.limit)
+        let page = this.currentPage
+        let curLimit = this.limit
+        // 返回指定条数的数组
+        arr = arr.slice(curLimit * page, curLimit * (page + 1))
+        return arr
+      },
+      turnPage (num) {
+        if (num === 1) {
+          if (this.currentPage === this.totalPage-1) {
+            return
+          } else {
+            this.currentPage++
+          }
+        } else {
+          if (this.currentPage === 0) {
+            return
+          } else {
+            this.currentPage--          
+          }
+        }
+      },
+      jumpToPage () {
+        let jPage = this.jPage
+        if (jPage <= 0 || jPage > this.totalPage) {
+          alert('page out of range')
+        } else {
+          this.currentPage = jPage-1
+        }
+      },
+      approveSel () {
+        this.setAuditId(this.selectedUsers, 1)
+      },
+      approveAll () {
+        this.setAuditId(this.filteredUsers, 1)
+      },
+      pass () {
+        this.setAuditId(this.selectedUsers, 2)
+      },
+      reject () {
+        this.setAuditId(this.selectedUsers, 3)
+      },
+      setAuditId (users, aId) {
+        users.forEach((user) => {
+          user.audit = aId
+        })
+      }
+    }
+  })
+
+</script>
+
+</body>
+
+</html>
