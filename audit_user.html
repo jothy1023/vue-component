@@ -27,9 +27,15 @@
       margin-top: 10px;
     }
     
-    .jtp input {
-      width: 50px;
-      height: 25px;
+    .jtp .ui.icon.input input {
+			padding: 0.5em!important;
+			width: 32px;
+ 		}
+
+    .modal .content {
+      display: flex!important;
+      justify-content: center;
+      align-items: center;
     }
   </style>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.2.6/semantic.min.css" />
@@ -67,7 +73,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="user in filteredUsers">
+          <tr v-for="user in filteredUsers" @click="showModel">
             <td class="collapsing">
               <div class="ui toggle slider checkbox" v-if="aKey!==''">
                 <input type="checkbox" :value="user" v-model="selectedUsers"> <label></label>
@@ -82,10 +88,10 @@
               <i class="remove red icon" v-if="user.audit==3"></i>
             </td>
             <td>
-              <button class="ui button primary" v-if="user.audit==0" @click="user.audit=1">审核</button>
-              <button class="ui button green" v-if="user.audit==1" @click="user.audit=2">通过审核</button>
-              <button class="ui button red" v-if="user.audit==1" @click="user.audit=3">不通过审核</button>
-              <button class="ui button grey" v-if="user.audit==2 || user.audit==3" @click="user.audit=1">再次审核</button>
+              <button class="ui button primary" v-if="user.audit==0" @click="doAudit(1, user)">审核</button>
+              <button class="ui button green" v-if="user.audit==1" @click="doAudit(2, user)">通过审核</button>
+              <button class="ui button red" v-if="user.audit==1" @click="doAudit(3, user)">不通过审核</button>
+              <button class="ui button grey" v-if="user.audit==2 || user.audit==3" @click="doAudit(1, user)">再次审核</button>
             </td>
           </tr>
         </tbody>
@@ -93,12 +99,14 @@
           <tr>
             <th></th>
             <th colspan="4">
-              <button class="ui button green" v-if="aKey==='1'" @click="pass">通过审核</button>
-              <button class="ui button green" v-if="aKey==='1'" @click="reject">不通过审核</button>
-              <button class="ui button small" v-if="aKey==='0'" @click="approveSel">审核</button>
-              <button class="ui button small" v-if="aKey==='0'" @click="approveAll">全部审核</button>
-              <button class="ui button small" v-if="aKey==='2' || aKey==='3'" @click="approveSel">再次审核</button>
-              <button class="ui button small" v-if="aKey==='2' || aKey==='3'" @click="approveAll">全部再次审核</button>
+              <button class="ui button green" v-if="aKey==='1'" @click="doAudit(2, 0)">通过审核</button>
+              <button class="ui button green" v-if="aKey==='1'" @click="doAudit(2, -1)">全部通过审核</button>
+              <button class="ui button red" v-if="aKey==='1'" @click="doAudit(3, 0)">不通过审核</button>
+              <button class="ui button red" v-if="aKey==='1'" @click="doAudit(3, -1)">全部不通过审核</button>
+              <button class="ui button small" v-if="aKey==='0'" @click="doAudit(1, 0)">审核</button>
+              <button class="ui button small" v-if="aKey==='0'" @click="doAudit(1, -1)">全部审核</button>
+              <button class="ui button small" v-if="aKey==='2' || aKey==='3'" @click="doAudit(1, 0)">再次审核</button>
+              <button class="ui button small" v-if="aKey==='2' || aKey==='3'" @click="doAudit(1, -1)">全部再次审核</button>
               <button class="ui button left labeled icon" @click="turnPage(-1)">
                 <i class="left arrow icon"></i> Prev
               </button>
@@ -106,15 +114,28 @@
               <button class="ui button right labeled icon" @click="turnPage(1)">
                 <i class="right arrow icon"></i> Next
               </button>
-              <form @submit.prevent="jumpToPage" class="jtp">
-                <div class="ui input">
-                  <span>跳转到第 <input type="text" v-model="jPage"> 页</span>
-                </div>
-              </form>
+              <div class="jtp">
+                <span>跳转到第 </span>
+                <div class="ui input icon">
+                  <input type="text" v-model="jPage" @keyup.enter="jumpToPage">
+                </div><span> 页</span>
+              </div>
             </th>
           </tr>
         </tfoot>
       </table>
+      <div class="ui basic test modal">
+        <div class="ui items">
+          <div class="item">
+            <div class="image">
+              <img src="https://jothy1023.github.io/avatar.png" alt="" class="photo">
+            </div>
+            <div class="content" style="background-color: #fff">
+              <a class="header">{{ selectedUser.name }}</a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -129,39 +150,36 @@
     { name: 'sam1', id: 6, audit: 0 }, { name: 'lucy', id: 72, audit: 1 }, { name: 'like', id: 74, audit: 2 }, { name: 'peer', id: 84, audit: 3 },
   ]
 
-  var userStorage
 
-  function init() {
-    var STORAGE_KEY = 'users';
+  var STORAGE_KEY = 'users';
 
-    userStorage = {
-      fetch: function () {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || mockUsers
-      },
-      save: function (data) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-      }
-    };
-
+  var userStorage = {
+    fetch: function () {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || mockUsers
+    },
+    save: function (data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
     }
-   
-  init(window);
+  };
+
 
   const vm = new Vue({
     name: 'audit',
     el: '#audit',
     data () {
       return {
-        users: userStorage.fetch(),
-        selectedUsers: [],
-        fKey: '',
-        oldFKey: '',
-        aKey: '',
-        limit: 10,
-        totalPage: 0,
-        currentPage: 0,
-        jPage: null
-      } 
+        users: userStorage.fetch(), // users 数据
+        selectedUsers: [], // 保存选中的 users 数组
+        selectedUser: {}, // 选中 user
+        fKey: '', // 过滤 name 的关键字
+        name: '', // 上一次过滤的 name 关键字，初始化为''
+        aKey: '', // select audit 的关键字
+        audit: '', // 上一次过滤的 audit关键字，初始化为''
+        limit: 10, // 每页显示行数
+        totalPage: 0, // 总页数
+        currentPage: 0, // 当前页
+        jPage: 1 // 跳转到某页
+      }
     },
     // watch
     watch: {
@@ -192,14 +210,14 @@
         // filtering
         arr = arr.filter((user) => {
           if (user[prop].toString().indexOf(key) !== -1) {
-            return true 
+            return true
           }
         })
-        // if it's a new query, turn to page one
-        if (key !== this.oldFKey) {
+        // if it's a new filter query, research and turn to page one
+        if (key !== this[prop]) {
           this.currentPage = 0
           // save last filter query
-          this.oldFKey = key
+          this[prop] = key
         }
         return arr
       },
@@ -227,31 +245,41 @@
           }
         }
       },
-      jumpToPage () {
-        let jPage = this.jPage
-        if (jPage <= 0 || jPage > this.totalPage) {
+       jumpToPage () {
+        let jPage = this.jPage - 1
+        if (jPage < 0 || jPage > this.totalPage) {
           alert('page out of range')
         } else {
-          this.currentPage = jPage-1
+          this.currentPage = jPage
         }
       },
-      approveSel () {
-        this.setAuditId(this.selectedUsers, 1)
-      },
-      approveAll () {
-        this.setAuditId(this.filteredUsers, 1)
-      },
-      pass () {
-        this.setAuditId(this.selectedUsers, 2)
-      },
-      reject () {
-        this.setAuditId(this.selectedUsers, 3)
+      doAudit (newAudit, user) {
+        // user 可指定，为 0 时指选中用户，为 -1 时指全部用户
+        let users = []
+        if (user === 0) {
+          users = this.selectedUsers
+        } else if (user === -1) {
+          this.filteredUsers.forEach((v) => {
+            users.push(v)
+          })
+        } else {
+          users.push(user)
+        }
+        this.setAuditId(users, newAudit)
       },
       setAuditId (users, aId) {
         users.forEach((user) => {
           user.audit = aId
         })
-      }
+      },
+      showModel (e) {
+        let target = e.target
+        if (target.nodeName.toLowerCase() === 'td'){
+          $('.ui.modal').modal('show')
+        }
+        let index = $(target.parentNode).index()
+        this.selectedUser = this.filteredUsers[index]
+       }
     }
   })
 
